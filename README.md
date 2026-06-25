@@ -1,61 +1,50 @@
 # NCM 文件解密工具
 
-将网易云音乐加密的 `.ncm` 文件转换为标准音频格式（MP3/FLAC），并保留完整的元数据和专辑封面。支持递归处理文件夹，完整保留目录结构。
+将网易云音乐加密的 `.ncm` 文件转换为标准音频格式（MP3/FLAC），并保留元数据。采用模块化架构设计，支持递归处理文件夹，完整保留目录结构。
 
 ## 功能特性
 
-- **自动格式识别**：根据文件头自动检测输出格式（MP3 或 FLAC）
-- **完整元数据**：自动提取并写入歌曲名、艺术家、专辑、年份等信息
-- **专辑封面**：自动下载并嵌入专辑封面图片
-- **多格式支持**：同时支持 MP3 和 FLAC 格式的元数据写入
-- **递归目录处理**：自动遍历所有子文件夹，发现所有 NCM 文件
-- **保留目录结构**：在输出文件夹中完整复制输入文件夹的目录结构
-- **智能文件处理**：
-  - NCM 文件自动转换为 MP3/FLAC
-  - 其他文件（图片、文本等）直接复制到对应位置
-- **批量转换**：支持目录批量转换，自动跳过已转换文件
-- **多线程处理**：利用多核 CPU 提升转换速度（默认使用 100% CPU 核心）
-- **黑名单机制**：跳过特定文件夹（如系统文件夹、缓存等）
-- **覆写模式**：支持重新处理已存在的文件，用于库更新和元数据修正
+- **模块化架构**：核心解密、元数据解析、文件系统操作分离，易于维护与扩展。
+- **自动格式识别**：根据文件头自动检测输出格式（MP3 或 FLAC）。
+- **完整元数据**：自动提取并写入歌曲名、艺术家、专辑、年份等信息。默认自动下载并嵌入专辑封面，您也可以选择关闭此功能交由第三方工具处理。
+- **智能目录识别**：专门针对网易云下载目录 `VipSongsDownload` 进行解密处理，其他目录及非 NCM 文件则直接复制，完美保留层级。
+- **强制覆盖机制**：支持全局强制覆盖转换，或仅指定若干文件进行重新转换。
+- **多线程处理**：利用多核 CPU 提升转换速度。
+- **黑名单机制**：跳过特定文件夹（如系统文件夹、缓存等）。
 
 ## 使用方法
+
+推荐使用 `uv` 进行依赖管理与执行：
 
 ### 基本用法
 
 ```bash
-# 使用默认路径（./Music -> ./Output）
-python ncm_crack.py
+# 默认路径（/home/godke/Data/Music -> /home/godke/Data/MusicDB）
+uv run python -m ncm_crack
 
-# 指定输入文件夹
-python ncm_crack.py -p ./MyMusic
+# 指定输入与输出文件夹
+uv run python -m ncm_crack -p ./MyMusic -o ./ConvertedMusic
 
-# 同时指定输入和输出文件夹
-python ncm_crack.py -p ./MyMusic -o ./ConvertedMusic
+# 启用全局覆写模式（重新处理所有已存在的文件）
+uv run python -m ncm_crack -f
 
-# 启用覆写模式（重新处理已存在的文件）
-python ncm_crack.py -f
+# 仅针对部分特定文件进行覆写（传入文件名列表）
+uv run python -m ncm_crack -f 1.ncm 2.ncm
 
-# 组合使用
-python ncm_crack.py -p ./Music -o ./Output -b demo test -f
+# 添加自定义黑名单
+uv run python -m ncm_crack -b demo test
+
+# 关闭封面下载功能
+uv run python -m ncm_crack --no-cover
 ```
 
 ### 参数说明
 
-- `-p, --path`：输入目录路径（默认：`./Music`）
-- `-o, --output`：输出目录路径（默认：输入目录同级的 `Output` 文件夹）
+- `-p, --path`：输入目录路径（默认：`/home/godke/Data/Music`）
+- `-o, --output`：输出目录路径（默认：`/home/godke/Data/MusicDB`）
 - `-b, --blacklist`：要跳过的文件夹名称列表（空格分隔）
-- `-f, --overwrite`：覆写已存在的文件（用于库更新和元数据修正）
-
-
-### 黑名单机制
-
-默认跳过以下文件夹：
-- 系统文件夹：`__pycache__`, `.git`, `.svn`, `.hg`, `.idea`, `.vscode`
-- 依赖文件夹：`node_modules`
-- 输出目录：`Output`
-
-可通过 `-b` 参数添加自定义黑名单文件夹。
-
+- `-f, --overwrite`：强制覆盖。如果不提供参数则覆盖所有文件，提供具体文件名则仅覆盖列表中的文件。
+- `--no-cover`：不下载并嵌入封面图片（默认会下载并嵌入封面）。
 
 ## 依赖说明
 
@@ -67,7 +56,8 @@ python ncm_crack.py -p ./Music -o ./Output -b demo test -f
 - `tqdm` - 进度条显示
 - `psutil` - CPU 使用率监控
 
-安装依赖：
+安装依赖与运行：
 ```bash
 uv sync
+uv run python -m ncm_crack
 ```
