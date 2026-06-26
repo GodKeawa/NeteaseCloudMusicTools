@@ -50,6 +50,13 @@ def main():
         help="不下载并嵌入封面图片（默认会下载封面）",
     )
 
+    parser.add_argument(
+        "-s",
+        "--silent",
+        action="store_true",
+        help="不打印更新的文件列表（默认会打印）",
+    )
+
     args = parser.parse_args()
 
     if not os.path.isdir(args.path):
@@ -98,6 +105,12 @@ def main():
     print(f"  成功: {stats['copy_success']} 个文件")
     print(f"  失败: {stats['copy_failed']} 个文件")
     print(f"  跳过: {stats['copy_skipped']} 个文件")
+
+    if not args.silent and stats.get("updated_files"):
+        print(f"\n更新/覆盖的文件列表 ({len(stats['updated_files'])}个):")
+        for f in sorted(stats['updated_files']):
+            print(f"  - {f}")
+
 
 
 if __name__ == "__main__":

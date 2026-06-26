@@ -45,6 +45,10 @@ class BatchConverter:
 
     def _get_relative_output_path(self, input_file: Path) -> Path:
         rel_path = input_file.relative_to(self.input_dir)
+        parts = list(rel_path.parts)
+        if "VipSongsDownload" in parts:
+            parts.remove("VipSongsDownload")
+            rel_path = Path(*parts)
         return self.output_dir / rel_path
 
     def _is_already_converted(self, output_path: Path, base_name: str, original_filename: str) -> bool:
@@ -54,10 +58,9 @@ class BatchConverter:
             return False
 
         parent_dir = output_path.parent
-        base_path = parent_dir / base_name
         return (
-            base_path.with_suffix(".mp3").exists()
-            or base_path.with_suffix(".flac").exists()
+            (parent_dir / f"{base_name}.mp3").exists()
+            or (parent_dir / f"{base_name}.flac").exists()
         )
 
     def _convert_single_file(self, ncm_path: Path, output_path: Path, max_retries: int = 3) -> Optional[bool]:
@@ -150,6 +153,7 @@ class BatchConverter:
         stats = {
             "ncm_success": 0, "ncm_failed": 0, "ncm_skipped": 0,
             "copy_success": 0, "copy_failed": 0, "copy_skipped": 0,
+            "updated_files": []
         }
         
         if total_files == 0:
@@ -169,23 +173,24 @@ class BatchConverter:
             for ncm_file in ncm_files:
                 output_path = self._get_relative_output_path(ncm_file)
                 future = executor.submit(self._convert_single_file, ncm_file, output_path)
-                futures.append(("ncm", future))
+                futures.append(("ncm", future, ncm_file.name))
 
             for other_file in other_files:
                 dst_path = self._get_relative_output_path(other_file)
                 future = executor.submit(self._copy_single_file, other_file, dst_path)
-                futures.append(("copy", future))
+                futures.append(("copy", future, other_file.name))
 
             with tqdm(total=len(futures), desc="处理进度", unit="文件") as pbar:
-                for _, future in futures:
+                for _, future, _ in futures:
                     future.add_done_callback(lambda _: pbar.update(1))
-                wait([f for _, f in futures])
+                wait([f for _, f, _ in futures])
 
-            for file_type, future in futures:
+            for file_type, future, filename in futures:
                 result = future.result()
                 if file_type == "ncm":
                     if result is True:
                         stats["ncm_success"] += 1
+                        stats["updated_files"].append(filename)
                     elif result is False:
                         stats["ncm_failed"] += 1
                     else:
@@ -193,6 +198,7 @@ class BatchConverter:
                 else:
                     if result is True:
                         stats["copy_success"] += 1
+                        stats["updated_files"].append(filename)
                     elif result is False:
                         stats["copy_failed"] += 1
                     else:

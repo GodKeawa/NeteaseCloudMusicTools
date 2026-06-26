@@ -6,6 +6,7 @@ class NcmInfo:
     """NCM 文件元数据容器"""
     
     # 基础信息
+    music_id: Optional[int] = None
     music_name: Optional[str] = None
     album: Optional[str] = None
     artist: Union[str, List[Any], None] = None
@@ -31,6 +32,7 @@ class NcmInfo:
     def from_dict(cls, data: dict, key_data: Optional[bytes] = None, key_box: Optional[bytearray] = None) -> "NcmInfo":
         """从解析的 JSON 数据构建"""
         return cls(
+            music_id=data.get("musicId"),
             music_name=data.get("musicName"),
             album=data.get("album"),
             artist=data.get("artist"),

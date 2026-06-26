@@ -1,0 +1,4 @@
+[submodule "music_tag_web"]
+	path = music_tag_web
+	url = git@github.com:GodKeawa/music_tag_web.git
+	branch = master

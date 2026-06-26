@@ -137,6 +137,15 @@ wheels = [
 ]
 
 [[package]]
+name = "music-tag"
+version = "0.4.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "mutagen" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/fc/f4/ebcdd2fc9bfaf569b795250090e4f4088dc65a5a3e32c53baa9bfc3fc296/music-tag-0.4.3.tar.gz", hash = "sha256:0aab6e6eeda8df0f5316ec2d2190bd74561b7e03562ab091ce8d5687cdbcfff6", size = 23153, upload-time = "2021-06-05T17:20:23.552Z" }
+
+[[package]]
 name = "mutagen"
 version = "1.47.0"
 source = { registry = "https://pypi.org/simple" }
@@ -151,20 +160,24 @@ version = "0.2.0"
 source = { editable = "." }
 dependencies = [
     { name = "eyed3" },
+    { name = "music-tag" },
     { name = "mutagen" },
     { name = "psutil" },
     { name = "pycryptodome" },
     { name = "requests" },
+    { name = "setuptools" },
     { name = "tqdm" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "eyed3", specifier = ">=0.9.9" },
+    { name = "music-tag", specifier = ">=0.4.3" },
     { name = "mutagen", specifier = ">=1.47.0" },
     { name = "psutil", specifier = ">=7.2.1" },
     { name = "pycryptodome", specifier = ">=3.23.0" },
     { name = "requests", specifier = ">=2.34.2" },
+    { name = "setuptools", specifier = ">=82.0.1" },
     { name = "tqdm", specifier = ">=4.67.1" },
 ]
 
@@ -248,6 +261,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/ac/c3/e2a2b89f2d3e2179abd6d00ebd70bff6273f37fb3e0cc209f48b39d00cbf/requests-2.34.2.tar.gz", hash = "sha256:f288924cae4e29463698d6d60bc6a4da69c89185ad1e0bcc4104f584e960b9ed", size = 142856, upload-time = "2026-05-14T19:25:27.735Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a0/f4/c67b0b3f1b9245e8d266f0f112c500d50e5b4e83cb6f3b71b6528104182a/requests-2.34.2-py3-none-any.whl", hash = "sha256:2a0d60c172f83ac6ab31e4554906c0f3b3588d37b5cb939b1c061f4907e278e0", size = 73075, upload-time = "2026-05-14T19:25:26.443Z" },
+]
+
+[[package]]
+name = "setuptools"
+version = "82.0.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/4f/db/cfac1baf10650ab4d1c111714410d2fbb77ac5a616db26775db562c8fab2/setuptools-82.0.1.tar.gz", hash = "sha256:7d872682c5d01cfde07da7bccc7b65469d3dca203318515ada1de5eda35efbf9", size = 1152316, upload-time = "2026-03-09T12:47:17.221Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/9d/76/f789f7a86709c6b087c5a2f52f911838cad707cc613162401badc665acfe/setuptools-82.0.1-py3-none-any.whl", hash = "sha256:a59e362652f08dcd477c78bb6e7bd9d80a7995bc73ce773050228a348ce2e5bb", size = 1006223, upload-time = "2026-03-09T12:47:15.026Z" },
 ]
 
 [[package]]

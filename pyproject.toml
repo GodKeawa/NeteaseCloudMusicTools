@@ -5,10 +5,12 @@
     requires-python = ">=3.12"
     dependencies = [
         "eyed3>=0.9.9",
+        "music-tag>=0.4.3",
         "mutagen>=1.47.0",
         "psutil>=7.2.1",
         "pycryptodome>=3.23.0",
         "requests>=2.34.2",
+        "setuptools>=82.0.1",
         "tqdm>=4.67.1",
 ]
 
@@ -17,3 +19,6 @@ ncm-crack = "ncm_crack.__main__:main"
 
 [tool.uv]
 package = true
+
+[tool.setuptools]
+packages = ["ncm_crack"]

@@ -46,6 +46,8 @@ def set_mp3_metadata(mp3_path: str, info: NcmInfo, cover_data: bytes | None = No
             comments.append("别名: " + "; ".join(info.alias))
         if info.trans_names:
             comments.append("翻译: " + "; ".join(info.trans_names))
+        if info.music_id:
+            comments.append(f"163_key: {info.music_id}")
         if comments:
             audio.tags["COMM"] = COMM(encoding=3, lang="chi", desc="", text="\n".join(comments))
 
@@ -100,6 +102,8 @@ def set_flac_metadata(flac_path: str, info: NcmInfo, cover_data: bytes | None = 
             comments.append(f"Bitrate: {info.bitrate // 1000} kbps")
         if info.duration:
             comments.append(f"Duration: {info.duration / 1000:.2f}s")
+        if info.music_id:
+            comments.append(f"163_key: {info.music_id}")
         if comments:
             audio["COMMENT"] = "; ".join(comments)
 
