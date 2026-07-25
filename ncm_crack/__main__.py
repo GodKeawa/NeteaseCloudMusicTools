@@ -1,5 +1,7 @@
 import argparse
 import os
+import sys
+import subprocess
 from pathlib import Path
 from typing import Set
 
@@ -7,15 +9,24 @@ from .utils.fs import BatchConverter
 
 def main():
     """命令行主函数"""
+    
+    # 默认路径
+    default_input = Path("/home/godke/Data/Music")
+    default_output = Path("/home/godke/Music/MusicDB")
+    
+    if len(sys.argv) >= 2 and sys.argv[1] == "ui":
+        ui_path = Path(__file__).parent / "ui" / "app.py"
+        # 允许用户传入特定的输出目录
+        output_dir = sys.argv[2] if len(sys.argv) > 2 else str(default_output)
+        os.environ["NCM_CRACK_OUTPUT_DIR"] = output_dir
+        subprocess.run(["streamlit", "run", str(ui_path)])
+        return
+
     parser = argparse.ArgumentParser(
         description="NCM Cracker",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
-    # 默认路径
-    default_input = Path("/home/godke/Data/Music")
-    default_output = Path("/home/godke/Data/MusicDB")
-    
     parser.add_argument(
         "-p",
         "--path",
@@ -56,6 +67,13 @@ def main():
         action="store_true",
         help="不打印更新的文件列表（默认会打印）",
     )
+    parser.add_argument(
+        "-w",
+        "--workers",
+        type=int,
+        default=None,
+        help="最大并发线程数（默认为 CPU 核心数的 80%）",
+    )
 
     args = parser.parse_args()
 
@@ -94,7 +112,7 @@ def main():
     print(f"黑名单文件夹: {', '.join(sorted(converter.folder_blacklist))}")
     print()
 
-    stats = converter.convert_all()
+    stats = converter.convert_all(max_workers=args.workers)
 
     print(f"\n处理完成!")
     print(f"\nNCM 转换:")

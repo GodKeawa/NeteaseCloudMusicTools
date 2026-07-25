@@ -12,8 +12,11 @@ from ..core.parser import NcmParser
 from ..core.decryptor import NcmDecryptor
 from ..metadata.writer import set_audio_metadata
 from ..metadata.fixer import fix_audio_metadata
+from .db import DatabaseManager
 
 MAX_CPU_PERCENT = 100
+
+import threading
 
 class BatchConverter:
     """批量转换 NCM 文件，支持特定目录 (VipSongsDownload) 及文件复制"""
@@ -42,6 +45,9 @@ class BatchConverter:
         self.overwrite = overwrite
         self.overwrite_files = overwrite_files or set()
         self.download_cover = download_cover
+        
+        self.db = DatabaseManager(self.output_dir / "ncm_index.db")
+        self.fs_lock = threading.Lock()
 
     def _get_relative_output_path(self, input_file: Path) -> Path:
         rel_path = input_file.relative_to(self.input_dir)
@@ -51,38 +57,60 @@ class BatchConverter:
             rel_path = Path(*parts)
         return self.output_dir / rel_path
 
-    def _is_already_converted(self, output_path: Path, base_name: str, original_filename: str) -> bool:
-        if self.overwrite:
-            return False
-        if original_filename in self.overwrite_files:
+    def _is_already_converted(self, ncm_path: Path, output_path: Path, base_name: str) -> bool:
+        should_overwrite = self.overwrite or (ncm_path.name in self.overwrite_files)
+        if should_overwrite:
             return False
 
-        parent_dir = output_path.parent
-        return (
-            (parent_dir / f"{base_name}.mp3").exists()
-            or (parent_dir / f"{base_name}.flac").exists()
-        )
+        rel_path_str = str(ncm_path.relative_to(self.input_dir))
+
+        if self.db.is_converted(rel_path_str):
+            return True
+
+        # 如果数据库中没有记录，即使磁盘上有文件，我们也返回 False 强制重新解析。
+        # 这样可以保证数据库的完整性，并且会触发元数据的清理和回写。
+        return False
 
     def _convert_single_file(self, ncm_path: Path, output_path: Path, max_retries: int = 3) -> Optional[bool]:
         base_name = ncm_path.stem
-        if self._is_already_converted(output_path, base_name, ncm_path.name):
+        if self._is_already_converted(ncm_path, output_path, base_name):
             return None
 
-        output_path.parent.mkdir(parents=True, exist_ok=True)
+        with self.fs_lock:
+            output_path.parent.mkdir(parents=True, exist_ok=True)
 
         for attempt in range(max_retries):
             try:
+                import tempfile
+                import shutil
                 while psutil.cpu_percent(1) > MAX_CPU_PERCENT:
                     time.sleep(0.5)
 
                 parser = NcmParser(ncm_path)
                 ncm_info = parser.parse()
 
-                temp_output = output_path.parent / f"{base_name}.mp3"
-                decryptor = NcmDecryptor(ncm_path, ncm_info)
-                final_path = decryptor.decrypt(temp_output)
-
-                set_audio_metadata(final_path, ncm_info, download_cover=self.download_cover)
+                # 为了避免在目标盘上频繁做临时文件的读写, 我们先在系统本地临时目录（/tmp）下完成一切操作，最后再一次性完整拷入目标盘
+                with tempfile.TemporaryDirectory() as temp_dir:
+                    temp_output = Path(temp_dir) / f"{base_name}.mp3"
+                    decryptor = NcmDecryptor(ncm_path, ncm_info)
+                    
+                    # 在临时目录解密并重命名正确的后缀
+                    final_temp_path = Path(decryptor.decrypt(temp_output))
+                    
+                    # 在临时目录应用元数据（包含下载封面、mutagen写入等）
+                    set_audio_metadata(final_temp_path, ncm_info, download_cover=self.download_cover)
+                    
+                    # 全部操作完成后，将最终成品安全复制到目标盘
+                    final_dest = output_path.parent / final_temp_path.name
+                    with self.fs_lock:
+                        if final_dest.exists():
+                            final_dest.unlink()
+                        shutil.copy(final_temp_path, final_dest)
+                    
+                    # 写入数据库记录
+                    rel_ncm_path = str(ncm_path.relative_to(self.input_dir))
+                    rel_out_path = str(final_dest.relative_to(self.output_dir))
+                    self.db.add_record(rel_ncm_path, rel_out_path, ncm_info)
 
                 return True
 
@@ -97,18 +125,72 @@ class BatchConverter:
 
     def _copy_single_file(self, src_path: Path, dst_path: Path) -> Optional[bool]:
         try:
-            should_overwrite = self.overwrite or (src_path.name in self.overwrite_files)
-            if dst_path.exists() and not should_overwrite:
-                return None
-
-            dst_path.parent.mkdir(parents=True, exist_ok=True)
+            rel_src_path_str = str(src_path.relative_to(self.input_dir))
             
-            is_audio = dst_path.suffix.lower() in [".mp3", ".flac"]
-
-            shutil.copy2(src_path, dst_path)
+            should_overwrite = self.overwrite or (src_path.name in self.overwrite_files)
+            
+            is_audio = src_path.suffix.lower() in [".mp3", ".flac"]
+            
+            # 非音频文件（如 lrc, txt）直接跳过已存在的文件
+            if not is_audio:
+                if dst_path.exists() and not should_overwrite:
+                    return None
+            else:
+                if dst_path.exists() and not should_overwrite:
+                    if self.db.is_converted(rel_src_path_str):
+                        return None
+                        
+                if self.db.is_converted(rel_src_path_str) and not should_overwrite:
+                    return None
 
             if is_audio:
-                fix_audio_metadata(dst_path)
+                from ..core.key_parser import parse_163_key_from_file
+                from ..core.models import NcmInfo
+                import mutagen
+                import tempfile
+                
+                ncm_info = parse_163_key_from_file(src_path)
+                
+                with tempfile.TemporaryDirectory() as temp_dir:
+                    temp_file = Path(temp_dir) / src_path.name
+                    shutil.copy(src_path, temp_file)
+                    
+                    if ncm_info:
+                        # 从原生文件提取到了 163 key，使用完整元数据写入
+                        set_audio_metadata(temp_file, ncm_info, download_cover=self.download_cover)
+                    else:
+                        # 没有提取到 163 key，尝试从原生标签构建 ncm_info 以存入数据库
+                        fix_audio_metadata(temp_file)
+                        ncm_info = NcmInfo()
+                        try:
+                            audio = mutagen.File(str(temp_file))
+                            if audio is not None:
+                                if "TIT2" in audio or "title" in audio:
+                                    ncm_info.music_name = str(audio.get("TIT2", audio.get("title", [None])[0]))
+                                if "TPE1" in audio or "artist" in audio:
+                                    ncm_info.artist = str(audio.get("TPE1", audio.get("artist", [None])[0]))
+                                if "TALB" in audio or "album" in audio:
+                                    ncm_info.album = str(audio.get("TALB", audio.get("album", [None])[0]))
+                        except Exception:
+                            pass
+                        
+                        # Fallback to filename if no tags
+                        if not ncm_info.music_name:
+                            ncm_info.music_name = src_path.stem
+
+                    # 复制回目标盘
+                    with self.fs_lock:
+                        dst_path.parent.mkdir(parents=True, exist_ok=True)
+                        if dst_path.exists():
+                            dst_path.unlink()
+                        shutil.copy(temp_file, dst_path)
+                        
+                    rel_out_path = str(dst_path.relative_to(self.output_dir))
+                    self.db.add_record(rel_src_path_str, rel_out_path, ncm_info)
+            else:
+                with self.fs_lock:
+                    dst_path.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy(src_path, dst_path)
 
             return True
 

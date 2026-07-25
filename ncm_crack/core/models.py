@@ -20,6 +20,8 @@ class NcmInfo:
     # 额外元数据
     alias: List[str] = field(default_factory=list)
     trans_names: List[str] = field(default_factory=list)
+    lyric: Optional[str] = None
+    has_lyric: Optional[int] = None
     
     # 封面 (不处理封面写入，解析出URL供参考)
     album_pic_url: Optional[str] = None
@@ -45,4 +47,38 @@ class NcmInfo:
             album_pic_url=data.get("albumPic"),
             key_data=key_data,
             key_box=key_box,
+        )
+
+    @classmethod
+    def from_db_row(cls, row: dict) -> "NcmInfo":
+        """从 SQLite 数据库行中反序列化构建 NcmInfo"""
+        import json
+        
+        alias = []
+        if row.get("alias"):
+            try:
+                alias = json.loads(row["alias"])
+            except Exception:
+                alias = [row["alias"]]
+                
+        trans_names = []
+        if row.get("trans_names"):
+            try:
+                trans_names = json.loads(row["trans_names"])
+            except Exception:
+                trans_names = [row["trans_names"]]
+                
+        return cls(
+            music_id=row.get("music_id"),
+            music_name=row.get("title"),
+            album=row.get("album"),
+            artist=row.get("artist"),
+            bitrate=row.get("bitrate"),
+            duration=row.get("duration"),
+            format=row.get("format", "mp3"),
+            publish_time=row.get("publish_time"),
+            album_pic_url=row.get("album_pic_url"),
+            alias=alias,
+            trans_names=trans_names,
+            has_lyric=row.get("has_lyric"),
         )

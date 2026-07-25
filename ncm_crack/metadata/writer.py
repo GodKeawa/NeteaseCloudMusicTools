@@ -3,7 +3,7 @@ from pathlib import Path
 
 from mutagen.flac import FLAC, Picture
 from mutagen.id3 import ID3
-from mutagen.id3._frames import TIT2, TPE1, TPE2, TALB, TDRC, COMM, TLEN, APIC
+from mutagen.id3._frames import TIT2, TPE1, TPE2, TALB, TDRC, COMM, TLEN, APIC, USLT
 from mutagen.mp3 import MP3
 
 from ..core.models import NcmInfo
@@ -41,6 +41,11 @@ def set_mp3_metadata(mp3_path: str, info: NcmInfo, cover_data: bytes | None = No
         if info.duration:
             audio.tags["TLEN"] = TLEN(encoding=3, text=str(info.duration))
 
+        # 清除旧的注释标签，防止多语言/多描述的重复写入
+        comm_keys = [k for k in audio.tags.keys() if k.startswith("COMM")]
+        for k in comm_keys:
+            del audio.tags[k]
+            
         comments = []
         if info.alias:
             comments.append("别名: " + "; ".join(info.alias))
@@ -49,7 +54,13 @@ def set_mp3_metadata(mp3_path: str, info: NcmInfo, cover_data: bytes | None = No
         if info.music_id:
             comments.append(f"163_key: {info.music_id}")
         if comments:
-            audio.tags["COMM"] = COMM(encoding=3, lang="chi", desc="", text="\n".join(comments))
+            audio.tags["COMM::chi"] = COMM(encoding=3, lang="chi", desc="", text="\n".join(comments))
+            
+        uslt_keys = [k for k in audio.tags.keys() if k.startswith("USLT")]
+        for k in uslt_keys:
+            del audio.tags[k]
+        if info.lyric:
+            audio.tags["USLT::chi"] = USLT(encoding=3, lang="chi", desc="", text=info.lyric)
 
         if cover_data:
             audio.tags["APIC"] = APIC(
@@ -91,6 +102,11 @@ def set_flac_metadata(flac_path: str, info: NcmInfo, cover_data: bytes | None = 
             year = str(info.publish_time)[:4]
             audio["DATE"] = year
 
+        if "COMMENT" in audio:
+            del audio["COMMENT"]
+        if "DESCRIPTION" in audio:
+            del audio["DESCRIPTION"]
+
         if info.alias:
             audio["SUBTITLE"] = info.alias
 
@@ -106,6 +122,15 @@ def set_flac_metadata(flac_path: str, info: NcmInfo, cover_data: bytes | None = 
             comments.append(f"163_key: {info.music_id}")
         if comments:
             audio["COMMENT"] = "; ".join(comments)
+
+        if "LYRICS" in audio:
+            del audio["LYRICS"]
+        if "UNSYNCEDLYRICS" in audio:
+            del audio["UNSYNCEDLYRICS"]
+            
+        if info.lyric:
+            audio["LYRICS"] = info.lyric
+            audio["UNSYNCEDLYRICS"] = info.lyric
 
         if cover_data:
             picture = Picture()
